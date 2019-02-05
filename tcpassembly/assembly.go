@@ -241,8 +241,9 @@ func (a *Assembler) FlushWithOptions(opt FlushOptions) (flushed, closed int) {
 	for _, conn := range conns {
 		flushed := false
 		conn.mu.Lock()
+		unlockMu := conn.mu
 		defer func() {
-			conn.mu.Unlock()
+			unlockMu.Unlock()
 		}()
 		if conn.closed {
 			// Already closed connection, nothing to do here.
