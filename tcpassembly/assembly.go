@@ -21,11 +21,12 @@ package tcpassembly
 import (
 	"flag"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 var memLog = flag.Bool("assembly_memuse_log", false, "If true, the github.com/google/gopacket/tcpassembly library will log information regarding its memory use every once in a while.")
@@ -245,6 +246,10 @@ func (a *Assembler) FlushWithOptions(opt FlushOptions) (flushed, closed int) {
 			conn.mu.Unlock()
 			continue
 		}
+		defer func() {
+			conn.mu.Unlock()
+		}()
+
 		for conn.first != nil && conn.first.Seen.Before(opt.T) {
 			a.skipFlush(conn)
 			flushed = true
@@ -261,7 +266,6 @@ func (a *Assembler) FlushWithOptions(opt FlushOptions) (flushed, closed int) {
 		if flushed {
 			flushes++
 		}
-		conn.mu.Unlock()
 	}
 	return flushes, closes
 }
@@ -562,6 +566,10 @@ func (a *Assembler) AssembleWithTimestamp(netFlow gopacket.Flow, t *layers.TCP, 
 		}
 		conn.mu.Unlock()
 	}
+	defer func() {
+		conn.mu.Unlock()
+	}()
+
 	if conn.lastSeen.Before(timestamp) {
 		conn.lastSeen = timestamp
 	}
@@ -604,7 +612,6 @@ func (a *Assembler) AssembleWithTimestamp(netFlow gopacket.Flow, t *layers.TCP, 
 	if len(a.ret) > 0 {
 		a.sendToConnection(conn)
 	}
-	conn.mu.Unlock()
 }
 
 func byteSpan(expected, received Sequence, bytes []byte) (toSend []byte, next Sequence) {
