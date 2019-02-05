@@ -241,14 +241,13 @@ func (a *Assembler) FlushWithOptions(opt FlushOptions) (flushed, closed int) {
 	for _, conn := range conns {
 		flushed := false
 		conn.mu.Lock()
-		if conn.closed {
-			// Already closed connection, nothing to do here.
-			conn.mu.Unlock()
-			continue
-		}
 		defer func() {
 			conn.mu.Unlock()
 		}()
+		if conn.closed {
+			// Already closed connection, nothing to do here.
+			continue
+		}
 
 		for conn.first != nil && conn.first.Seen.Before(opt.T) {
 			a.skipFlush(conn)
