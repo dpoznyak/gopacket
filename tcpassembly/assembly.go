@@ -21,11 +21,12 @@ package tcpassembly
 import (
 	"flag"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 var memLog = flag.Bool("assembly_memuse_log", false, "If true, the github.com/google/gopacket/tcpassembly library will log information regarding its memory use every once in a while.")
@@ -564,7 +565,7 @@ func (a *Assembler) AssembleWithTimestamp(netFlow gopacket.Flow, t *layers.TCP, 
 	}
 	defer func() {
 		conn.mu.Unlock()
-	}
+	}()
 
 	if conn.lastSeen.Before(timestamp) {
 		conn.lastSeen = timestamp
@@ -631,11 +632,11 @@ func byteSpan(expected, received Sequence, bytes []byte) (toSend []byte, next Se
 // the connection if the last thing sent had End set.
 func (a *Assembler) sendToConnection(conn *connection) error {
 	a.addContiguous(conn)
-	err Error = nil
+	var err error = nil
 	if conn.stream == nil {
 		//panic("why?")
-		err = fmt.Error("Problem with connection. conn.stream == nil. Killing conn")		
-		log.Printf(err.String())
+		err = fmt.Errorf("Problem with connection. conn.stream == nil. Killing conn")
+		log.Printf(err.Error())
 	}
 	conn.stream.Reassembled(a.ret)
 	if err != nil || a.ret[len(a.ret)-1].End {
@@ -725,12 +726,12 @@ func (a *Assembler) insertIntoConn(t *layers.TCP, conn *connection, ts time.Time
 	if conn.first != nil && conn.first.seq == conn.nextSeq {
 		//panic("wtf")
 		err := fmt.Errorf("Problem with connection: conn.first != nil && conn.first.seq == conn.nextSeq")
-		log.Printf(err.String())
+		log.Printf(err.Error())
 		a.closeConnection(conn)
 		return err
-	} 
+	}
 	p, p2, numPages := a.pagesFromTCP(t, ts)
-	prev,current := conn.traverseConn(Sequence(t.Seq))
+	prev, current := conn.traverseConn(Sequence(t.Seq))
 	conn.pushBetween(prev, current, p, p2)
 	conn.pages += numPages
 	if (a.MaxBufferedPagesPerConnection > 0 && conn.pages >= a.MaxBufferedPagesPerConnection) ||

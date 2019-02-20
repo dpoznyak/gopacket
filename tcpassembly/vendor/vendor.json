@@ -1,0 +1,23 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "vds/4eanHa+19p4dKuUso6kvLvw=",
+			"path": "github.com/google/gopacket",
+			"revision": "11c65f1ca9081dfea43b4f9643f5c155583b73ba",
+			"revisionTime": "2017-09-28T14:01:00Z",
+			"version": "v1.1.14",
+			"versionExact": "v1.1.14"
+		},
+		{
+			"checksumSHA1": "FVAMdzUBqdnH71t/JZani9zPuYo=",
+			"path": "github.com/google/gopacket/layers",
+			"revision": "11c65f1ca9081dfea43b4f9643f5c155583b73ba",
+			"revisionTime": "2017-09-28T14:01:00Z",
+			"version": "v1.1.14",
+			"versionExact": "v1.1.14"
+		}
+	],
+	"rootPath": "github.com/dpoznyak/gopacket/tcpassembly"
+}
