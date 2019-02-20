@@ -562,6 +562,10 @@ func (a *Assembler) AssembleWithTimestamp(netFlow gopacket.Flow, t *layers.TCP, 
 		}
 		conn.mu.Unlock()
 	}
+	defer func() {
+		conn.mu.Unlock()
+	}
+
 	if conn.lastSeen.Before(timestamp) {
 		conn.lastSeen = timestamp
 	}
@@ -582,13 +586,17 @@ func (a *Assembler) AssembleWithTimestamp(netFlow gopacket.Flow, t *layers.TCP, 
 			if *debugLog {
 				log.Printf("%v waiting for start, storing into connection", key)
 			}
-			a.insertIntoConn(t, conn, timestamp)
+			if err := a.insertIntoConn(t, conn, timestamp); err != nil {
+				return
+			}
 		}
 	} else if diff := conn.nextSeq.Difference(seq); diff > 0 {
 		if *debugLog {
 			log.Printf("%v gap in sequence numbers (%v, %v) diff %v, storing into connection", key, conn.nextSeq, seq, diff)
 		}
-		a.insertIntoConn(t, conn, timestamp)
+		if err := a.insertIntoConn(t, conn, timestamp); err != nil {
+			return
+		}
 	} else {
 		bytes, conn.nextSeq = byteSpan(conn.nextSeq, seq, bytes)
 		if *debugLog {
@@ -602,9 +610,8 @@ func (a *Assembler) AssembleWithTimestamp(netFlow gopacket.Flow, t *layers.TCP, 
 		})
 	}
 	if len(a.ret) > 0 {
-		a.sendToConnection(conn)
+		_ = a.sendToConnection(conn)
 	}
-	conn.mu.Unlock()
 }
 
 func byteSpan(expected, received Sequence, bytes []byte) (toSend []byte, next Sequence) {
@@ -622,15 +629,19 @@ func byteSpan(expected, received Sequence, bytes []byte) (toSend []byte, next Se
 
 // sendToConnection sends the current values in a.ret to the connection, closing
 // the connection if the last thing sent had End set.
-func (a *Assembler) sendToConnection(conn *connection) {
+func (a *Assembler) sendToConnection(conn *connection) error {
 	a.addContiguous(conn)
+	err Error = nil
 	if conn.stream == nil {
-		panic("why?")
+		//panic("why?")
+		err = fmt.Error("Problem with connection. conn.stream == nil. Killing conn")		
+		log.Printf(err.String())
 	}
 	conn.stream.Reassembled(a.ret)
-	if a.ret[len(a.ret)-1].End {
+	if err != nil || a.ret[len(a.ret)-1].End {
 		a.closeConnection(conn)
 	}
+	return err
 }
 
 // addContiguous adds contiguous byte-sets to a connection.
@@ -654,7 +665,7 @@ func (a *Assembler) skipFlush(conn *connection) {
 	a.ret = a.ret[:0]
 	a.addNextFromConn(conn)
 	a.addContiguous(conn)
-	a.sendToConnection(conn)
+	_ = a.sendToConnection(conn)
 }
 
 func (p *StreamPool) remove(conn *connection) {
@@ -710,12 +721,16 @@ func (c *connection) pushBetween(prev, next, first, last *page) {
 	}
 }
 
-func (a *Assembler) insertIntoConn(t *layers.TCP, conn *connection, ts time.Time) {
+func (a *Assembler) insertIntoConn(t *layers.TCP, conn *connection, ts time.Time) error {
 	if conn.first != nil && conn.first.seq == conn.nextSeq {
-		panic("wtf")
-	}
+		//panic("wtf")
+		err := fmt.Errorf("Problem with connection: conn.first != nil && conn.first.seq == conn.nextSeq")
+		log.Printf(err.String())
+		a.closeConnection(conn)
+		return err
+	} 
 	p, p2, numPages := a.pagesFromTCP(t, ts)
-	prev, current := conn.traverseConn(Sequence(t.Seq))
+	prev,current := conn.traverseConn(Sequence(t.Seq))
 	conn.pushBetween(prev, current, p, p2)
 	conn.pages += numPages
 	if (a.MaxBufferedPagesPerConnection > 0 && conn.pages >= a.MaxBufferedPagesPerConnection) ||
@@ -725,6 +740,7 @@ func (a *Assembler) insertIntoConn(t *layers.TCP, conn *connection, ts time.Time
 		}
 		a.addNextFromConn(conn)
 	}
+	return nil
 }
 
 // pagesFromTCP creates a page (or set of pages) from a TCP packet.  Note that
